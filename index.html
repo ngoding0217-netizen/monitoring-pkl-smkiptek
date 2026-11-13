@@ -4,36 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Monitoring PKL SMK IPTEK Tangsel</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link rel="stylesheet" href="TAMPILAN.CSS">
 </head>
 <body class="bg-[#FAFAFA] text-[#111111] font-sans antialiased selection:bg-black selection:text-white">
 
-    <!-- 1. WELCOME SCREEN CANVAS -->
-    <div id="canvas-welcome" class="fixed inset-0 z-50 flex items-center justify-center bg-[#FAFAFA]/80 backdrop-blur-2xl transition-opacity duration-700">
-        <div class="bg-white/80 backdrop-blur-xl border border-gray-200/80 shadow-2xl shadow-black/5 p-8 rounded-3xl w-full max-w-md text-center">
-            <div class="w-16 h-16 bg-[#111111] text-white rounded-full flex items-center justify-center mx-auto mb-6 text-xl font-bold tracking-widest">
-                PKL
-            </div>
-            <div class="text-xs uppercase tracking-widest text-gray-400 mb-2">RUANG PKL</div>
-            <h1 class="text-2xl font-bold mb-2">Selamat datang</h1>
-            <p class="text-gray-500 text-sm mb-8">Ruang praktik yang lebih terarah.</p>
-            
-            <!-- Loading Bar -->
-            <div class="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden mb-6">
-                <div id="welcome-progress" class="bg-[#111111] h-full w-0 transition-all duration-300"></div>
-            </div>
-
-            <button onclick="skipWelcome()" class="text-xs uppercase tracking-wider text-gray-500 hover:text-black py-2 px-4 rounded-full border border-gray-200 hover:border-black transition-all">
-                [ Lewati ]
-            </button>
-        </div>
-    </div>
-
-    <!-- 2. LOGIN SCREEN CANVAS (SPLIT SCREEN) -->
-    <div id="canvas-login" class="hidden min-h-screen grid grid-cols-1 lg:grid-cols-2">
-        <!-- Left Hero Section -->
+    <!-- LOGIN SCREEN — langsung tampil tanpa welcome -->
+    <div id="canvas-login" class="min-h-screen grid grid-cols-1 lg:grid-cols-2">
+        <!-- Left Hero -->
         <div class="hidden lg:flex flex-col justify-between p-16 border-r border-gray-200 bg-white/40 backdrop-blur-md">
             <div>
                 <div class="flex items-center gap-3 mb-12">
@@ -53,96 +31,94 @@
             </div>
         </div>
 
-        <!-- Right Form Section -->
+        <!-- Right Form -->
         <div class="flex flex-col justify-between p-8 sm:p-16 bg-white/80 backdrop-blur-xl">
             <div>
                 <div class="text-xs uppercase tracking-widest text-gray-400 mb-2">AKSES AKUN</div>
                 <h3 class="text-2xl font-bold mb-2">Selamat datang</h3>
                 <p class="text-gray-500 text-sm mb-8">Masuk untuk melanjutkan ke ruang kerja Anda.</p>
-
                 <form onsubmit="handleLogin(event)" class="space-y-5">
                     <div>
                         <label class="block text-xs uppercase tracking-wider text-gray-500 mb-2">Username</label>
-                        <input type="text" id="login-username" required placeholder="Masukkan username" class="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:outline-none focus:border-black transition-all text-sm">
+                        <input type="text" id="login-username" required placeholder="Masukkan username"
+                            class="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:outline-none focus:border-black transition-all text-sm">
                     </div>
                     <div>
                         <label class="block text-xs uppercase tracking-wider text-gray-500 mb-2">Kata Sandi</label>
-                        <input type="password" id="login-password" required placeholder="Masukkan kata sandi" class="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:outline-none focus:border-black transition-all text-sm">
+                        <input type="password" id="login-password" required placeholder="Masukkan kata sandi"
+                            class="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:outline-none focus:border-black transition-all text-sm">
                     </div>
-                    <button type="submit" class="w-full py-3.5 bg-[#111111] text-white rounded-xl font-medium text-sm hover:bg-gray-800 transition-all shadow-lg shadow-black/5">
-                        [ Masuk ke Sistem ]
+                    <button type="submit" id="btn-login"
+                        class="w-full py-3.5 bg-[#111111] text-white rounded-xl font-medium text-sm hover:bg-gray-800 transition-all shadow-lg shadow-black/5">
+                        Masuk ke Sistem
                     </button>
                 </form>
-
-                <!-- Quick Demo Buttons -->
+                <!-- Demo -->
                 <div class="mt-6 pt-6 border-t border-gray-100">
-                    <div class="text-xs text-gray-400 mb-3 uppercase tracking-wider">Demo Cepat Akun:</div>
+                    <div class="text-xs text-gray-400 mb-3 uppercase tracking-wider">Demo Cepat:</div>
                     <div class="grid grid-cols-3 gap-2">
-                        <button type="button" onclick="fillDemo('siswa', 'siswa123')" class="py-2 px-3 text-xs border border-gray-200 rounded-lg hover:border-black transition-all">Siswa</button>
-                        <button type="button" onclick="fillDemo('guru', 'guru123')" class="py-2 px-3 text-xs border border-gray-200 rounded-lg hover:border-black transition-all">Guru</button>
-                        <button type="button" onclick="fillDemo('admin', 'admin123')" class="py-2 px-3 text-xs border border-gray-200 rounded-lg hover:border-black transition-all">Admin</button>
+                        <button type="button" onclick="fillDemo('siswa','siswa123')"
+                            class="py-2 px-3 text-xs border border-gray-200 rounded-lg hover:border-black transition-all">Siswa</button>
+                        <button type="button" onclick="fillDemo('guru','guru123')"
+                            class="py-2 px-3 text-xs border border-gray-200 rounded-lg hover:border-black transition-all">Guru</button>
+                        <button type="button" onclick="fillDemo('admin','admin123')"
+                            class="py-2 px-3 text-xs border border-gray-200 rounded-lg hover:border-black transition-all">Admin</button>
                     </div>
                 </div>
             </div>
-
             <div class="pt-8 text-xs text-gray-400 flex justify-between items-center">
-                <span>RUANG PKL . 2026</span>
-                <span>[ AKSES AMAN ]</span>
+                <span>RUANG PKL · SMK IPTEK TANGSEL</span>
+                <span>2026</span>
             </div>
         </div>
     </div>
 
-    <!-- 3. MAIN APP DASHBOARD CANVAS (DYNAMIC RENDERED VIA JS) -->
+    <!-- APP DASHBOARD -->
     <div id="canvas-app" class="hidden min-h-screen flex flex-col lg:flex-row">
-        <!-- Sidebar Navigation -->
-        <aside class="w-full lg:w-72 bg-white/70 backdrop-blur-xl border-r border-gray-200/80 p-6 flex flex-col justify-between">
+        <!-- Sidebar -->
+        <aside class="w-full lg:w-64 bg-white/70 backdrop-blur-xl border-r border-gray-200/80 p-5 flex flex-col justify-between shrink-0">
             <div>
-                <div class="flex items-center gap-3 mb-8 pb-6 border-b border-gray-100">
-                    <div class="w-10 h-10 bg-[#111111] text-white rounded-full flex items-center justify-center text-xs font-bold">PKL</div>
-                    <div>
-                        <div class="font-bold text-sm">Ruang PKL</div>
-                        <div class="text-xs text-gray-400">SMK IPTEK Tangsel</div>
-                        <div id="user-role-badge" class="inline-block mt-1 text-[10px] uppercase tracking-wider bg-gray-100 px-2 py-0.5 rounded-md font-semibold">Siswa</div>
+                <div class="flex items-center gap-3 mb-7 pb-5 border-b border-gray-100">
+                    <div class="w-9 h-9 bg-[#111111] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">PKL</div>
+                    <div class="min-w-0">
+                        <div class="font-bold text-sm truncate">Ruang PKL</div>
+                        <div class="text-xs text-gray-400 truncate">SMK IPTEK Tangsel</div>
+                        <div id="user-role-badge"
+                            class="inline-block mt-1 text-[10px] uppercase tracking-wider bg-gray-100 px-2 py-0.5 rounded-md font-semibold">-</div>
                     </div>
                 </div>
-                <nav id="sidebar-menu" class="space-y-1.5">
-                    <!-- Dinamik Menu per Aktor -->
-                </nav>
+                <nav id="sidebar-menu" class="space-y-1"></nav>
             </div>
-
-            <div class="pt-6 border-t border-gray-100">
-                <div class="mb-4">
-                    <div id="sidebar-username" class="font-medium text-sm truncate">Nama Pengguna</div>
-                    <div id="sidebar-email" class="text-xs text-gray-400 truncate">role@school.com</div>
+            <div class="pt-5 border-t border-gray-100">
+                <div class="mb-3">
+                    <div id="sidebar-username" class="font-medium text-sm truncate">-</div>
+                    <div id="sidebar-email" class="text-xs text-gray-400 truncate">-</div>
                 </div>
-                <button onclick="logout()" class="w-full py-2.5 bg-[#111111] text-white text-xs uppercase tracking-wider rounded-xl hover:bg-gray-800 transition-all">
-                    [ Keluar ]
+                <button onclick="logout()"
+                    class="w-full py-2.5 bg-[#111111] text-white text-xs uppercase tracking-wider rounded-xl hover:bg-gray-800 transition-all">
+                    Keluar
                 </button>
             </div>
         </aside>
 
-        <!-- Main Content Area -->
-        <main class="flex-1 p-6 lg:p-10 overflow-y-auto">
-            <header class="mb-8 pb-4 border-b border-gray-200/80 flex justify-between items-center">
-                <div>
-                    <h2 id="page-title" class="text-2xl font-bold tracking-tight">Dashboard</h2>
-                    <p id="page-subtitle" class="text-xs text-gray-400 mt-0.5">Sistem Monitoring Praktik Kerja Lapangan</p>
+        <!-- Main -->
+        <main class="flex-1 p-6 lg:p-8 overflow-y-auto min-w-0">
+            <header class="mb-7 pb-4 border-b border-gray-200/80 flex justify-between items-center gap-4">
+                <div class="min-w-0">
+                    <h2 id="page-title" class="text-xl font-bold tracking-tight truncate">Dashboard</h2>
+                    <p id="page-subtitle" class="text-xs text-gray-400 mt-0.5 truncate">Sistem Monitoring PKL</p>
                 </div>
-                <div id="header-action-slot"></div>
+                <div id="header-action-slot" class="shrink-0"></div>
             </header>
-
-            <!-- Dynamic View Container -->
-            <div id="main-content-view" class="space-y-6">
-                <!-- Konten dinamis dirender di sini -->
-            </div>
+            <div id="main-content-view" class="space-y-6"></div>
         </main>
     </div>
 
-    <!-- TOAST NOTIFICATION CONTAINER -->
-    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2"></div>
+    <!-- TOAST -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-xs"></div>
 
-    <!-- MODAL POPUP CONTAINER -->
-    <div id="modal-container" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4"></div>
+    <!-- MODAL -->
+    <div id="modal-container" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"></div>
 
     <script src="java.js"></script>
 </body>

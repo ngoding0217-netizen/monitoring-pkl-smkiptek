@@ -78,28 +78,24 @@ const sb = {
 let currentUser = null;
 let currentView = null;
 
+// ─── CACHE — simpan data agar tidak query ulang ──────────────
+const cache = {};
+function clearCache() { Object.keys(cache).forEach(k => delete cache[k]); }
+async function cachedQuery(key, table, options) {
+    if (cache[key]) return cache[key];
+    const data = await sb.query(table, options);
+    cache[key] = data;
+    return data;
+}
+function invalidate(...keys) { keys.forEach(k => delete cache[k]); }
+
 // ─── HELPER ──────────────────────────────────────────────────
 function today() { return new Date().toISOString().slice(0, 10); }
 
-// ============================================================
-//  WELCOME ANIMATION
-// ============================================================
+// ─── Langsung tampilkan login (tidak ada welcome screen) ─────
 window.addEventListener('DOMContentLoaded', () => {
-    let progress = 0;
-    const bar = document.getElementById('welcome-progress');
-    const interval = setInterval(() => {
-        progress += 4;
-        if (bar) bar.style.width = progress + '%';
-        if (progress >= 100) { clearInterval(interval); skipWelcome(); }
-    }, 80);
+    document.getElementById('canvas-login')?.classList.remove('hidden');
 });
-
-function skipWelcome() {
-    const welcome = document.getElementById('canvas-welcome');
-    const login   = document.getElementById('canvas-login');
-    if (welcome) { welcome.classList.add('opacity-0','pointer-events-none'); setTimeout(() => welcome.style.display='none',500); }
-    if (login)   { login.classList.remove('hidden'); login.classList.add('fade-in'); }
-}
 
 function fillDemo(user, pass) {
     document.getElementById('login-username').value = user;
@@ -113,57 +109,50 @@ async function handleLogin(e) {
     e.preventDefault();
     const username = document.getElementById('login-username').value.trim().toLowerCase();
     const password = document.getElementById('login-password').value;
-    const btn = e.target.querySelector('button[type="submit"]');
+    const btn = document.getElementById('btn-login');
     btn.disabled = true; btn.innerText = 'Memuat...';
 
     try {
-        // Cari akun di tabel users
-        const users = await sb.query('users', {
-            select: 'id,username,role,nama,email',
-            eq: { username, password }
-        });
-
+        const users = await sb.query('users', { select:'id,username,role,nama,email', eq:{ username, password } });
         if (!users || users.length === 0) {
             showToast('Username atau kata sandi salah.', 'error');
-            btn.disabled = false; btn.innerText = '[ Masuk ke Sistem ]';
+            btn.disabled = false; btn.innerText = 'Masuk ke Sistem';
             return;
         }
-
         const user = users[0];
-
-        // Ambil profil sesuai role
         let profil = null;
         if (user.role === 'siswa') {
-            const data = await sb.query('siswa', { select: '*', eq: { username: user.username } });
+            const data = await sb.query('siswa', { select:'*', eq:{ username: user.username } });
             profil = data[0] || { username: user.username, nama: user.nama };
         } else if (user.role === 'guru') {
-            const data = await sb.query('guru', { select: '*', eq: { username: user.username } });
+            const data = await sb.query('guru', { select:'*', eq:{ username: user.username } });
             profil = data[0] || { username: user.username, nama: user.nama };
         } else {
             profil = { username: user.username, nama: user.nama, email: user.email };
         }
-
         currentUser = { role: user.role, username: user.username, profil };
-
+        clearCache();
         document.getElementById('canvas-login').classList.add('hidden');
         const app = document.getElementById('canvas-app');
         app.classList.remove('hidden');
-        app.classList.add('fade-in');
         initDashboard();
-        showToast('Berhasil masuk sebagai ' + user.role.toUpperCase());
+        showToast('Masuk sebagai ' + user.role.toUpperCase());
     } catch (err) {
         showToast(err.message, 'error');
-        btn.disabled = false; btn.innerText = '[ Masuk ke Sistem ]';
+        btn.disabled = false; btn.innerText = 'Masuk ke Sistem';
     }
 }
 
 function logout() {
     currentUser = null;
+    clearCache();
     document.getElementById('canvas-app').classList.add('hidden');
     const login = document.getElementById('canvas-login');
-    login.classList.remove('hidden'); login.classList.add('fade-in');
+    login.classList.remove('hidden');
     document.getElementById('login-username').value = '';
     document.getElementById('login-password').value = '';
+    const btn = document.getElementById('btn-login');
+    if (btn) { btn.disabled = false; btn.innerText = 'Masuk ke Sistem'; }
     showToast('Berhasil keluar dari sistem.');
 }
 
@@ -176,7 +165,7 @@ function initDashboard() {
     document.getElementById('sidebar-username').innerText = p?.nama || currentUser.username;
     document.getElementById('sidebar-email').innerText    = p?.email || currentUser.username + '@smkiptek.sch.id';
     renderSidebar(currentUser.role);
-    const def = { siswa:'status', guru:'kelompok', admin:'master' };
+    const def = { siswa:'dashboard', guru:'dashboard', admin:'dashboard' };
     navigate(def[currentUser.role]);
 }
 
@@ -247,7 +236,7 @@ async function navigate(target) {
             else if (target==='jurnal') {
                 titleEl.innerText="Jurnal Aktivitas PKL"; subEl.innerText="Catat pekerjaan harian untuk dinilai guru";
                 actionSlot.innerHTML=btnPrimary("openModalJurnal()",ICONS.plus+" Tulis Jurnal");
-                const siswaData = await sb.query('siswa',{select:'id',eq:{username:u}});
+                const siswaData = await cachedQuery('siswa_'+u,'siswa',{select:'id',eq:{username:u}});
                 const siswaId = siswaData[0]?.id;
                 const data = siswaId ? await sb.query('jurnal',{select:'*',eq:{siswa_id:siswaId},order:'tanggal.desc'}) : [];
                 renderJurnal(content, data);
@@ -259,7 +248,7 @@ async function navigate(target) {
             }
             else if (target==='pengumuman') {
                 titleEl.innerText="Papan Pengumuman"; subEl.innerText="Informasi dan instruksi dari guru pembimbing";
-                const data = await sb.query('pengumuman',{select:'*',order:'created_at.desc'});
+                const data = await cachedQuery('pengumuman','pengumuman',{select:'*',order:'created_at.desc'});
                 renderPengumumanSiswa(content, data);
             }
         }
@@ -268,23 +257,25 @@ async function navigate(target) {
             if (target==='kelompok') {
                 titleEl.innerText="Kelompok Siswa Bimbingan"; subEl.innerText="Pantau progres setiap kelompok";
                 const namaGuru = currentUser.profil?.nama || u;
-                const data = await sb.query('kelompok',{select:'*',eq:{guru:namaGuru},order:'created_at'});
-                // Ambil anggota tiap kelompok
-                for (const k of data) {
-                    const anggota = await sb.query('kelompok_anggota',{select:'*',eq:{kelompok_id:k.id}});
-                    k.kelompok_anggota = anggota;
-                }
-                renderKelompokGuru(content, data);
+                const [kelompokList, semuaAnggota] = await Promise.all([
+                    cachedQuery('kelompok_guru_'+namaGuru,'kelompok',{select:'*',eq:{guru:namaGuru},order:'created_at'}),
+                    cachedQuery('kelompok_anggota_all','kelompok_anggota',{select:'*'})
+                ]);
+                kelompokList.forEach(k => {
+                    k.kelompok_anggota = semuaAnggota.filter(a => a.kelompok_id === k.id);
+                });
+                renderKelompokGuru(content, kelompokList);
             }
             else if (target==='validasi') {
                 titleEl.innerText="Validasi Jurnal Siswa"; subEl.innerText="Tinjau jurnal harian siswa bimbingan";
                 const data = await sb.query('jurnal',{select:'*',eq:{status:'Pending'},order:'created_at'});
+                invalidate('jurnal_pending');
                 renderValidasiJurnal(content, data);
             }
             else if (target==='pengumuman') {
                 titleEl.innerText="Papan Pengumuman"; subEl.innerText="Kelola pengumuman untuk siswa";
                 actionSlot.innerHTML=btnPrimary("openModalPengumuman()",ICONS.pengumuman+" Buat Pengumuman");
-                const data = await sb.query('pengumuman',{select:'*',order:'created_at.desc'});
+                const data = await cachedQuery('pengumuman','pengumuman',{select:'*',order:'created_at.desc'});
                 renderPengumuman(content, data);
             }
             else if (target==='usulan') {
@@ -304,20 +295,22 @@ async function navigate(target) {
                     ${btnPrimary("openModalTambahAkun()",ICONS.plus+" Tambah Akun")}
                 </div>`;
                 const [siswas,gurus] = await Promise.all([
-                    sb.query('siswa',{select:'*',order:'nama'}),
-                    sb.query('guru', {select:'*',order:'nama'})
+                    cachedQuery('all_siswa','siswa',{select:'*',order:'nama'}),
+                    cachedQuery('all_guru','guru',{select:'*',order:'nama'})
                 ]);
                 renderMasterData(content, siswas, gurus);
             }
             else if (target==='plotting') {
                 titleEl.innerText="Manajemen Kelompok & Penempatan"; subEl.innerText="Tentukan kelompok siswa, guru, dan lokasi PT";
                 actionSlot.innerHTML=btnPrimary("openModalBuatKelompok()",ICONS.plus+" Buat Kelompok");
-                const data = await sb.query('kelompok',{select:'*',order:'created_at'});
-                for (const k of data) {
-                    const anggota = await sb.query('kelompok_anggota',{select:'*',eq:{kelompok_id:k.id}});
-                    k.kelompok_anggota = anggota;
-                }
-                renderPlotting(content, data);
+                const [kelList, anggotaAll] = await Promise.all([
+                    cachedQuery('all_kelompok','kelompok',{select:'*',order:'created_at'}),
+                    cachedQuery('kelompok_anggota_all','kelompok_anggota',{select:'*'})
+                ]);
+                kelList.forEach(k => {
+                    k.kelompok_anggota = anggotaAll.filter(a => a.kelompok_id === k.id);
+                });
+                renderPlotting(content, kelList);
             }
             else if (target==='dokumen') {
                 titleEl.innerText="Pusat Cetak Berkas & Legalitas"; subEl.innerText="Cetak surat pengantar dan sertifikat";
@@ -655,7 +648,7 @@ async function saveJurnal() {
     const tgl=document.getElementById('j-tgl').value, durasi=document.getElementById('j-durasi').value.trim(), kegiatan=document.getElementById('j-kegiatan').value.trim();
     if (!durasi||!kegiatan) { showToast('Semua kolom wajib diisi.','error'); return; }
     try {
-        const siswaData = await sb.query('siswa',{select:'id',eq:{username:currentUser.username}});
+        const siswaData = await cachedQuery('siswa_'+currentUser.username,'siswa',{select:'id',eq:{username:currentUser.username}});
         const siswaId = siswaData[0]?.id;
         await sb.insert('jurnal',{siswa_id:siswaId, username:currentUser.username, tanggal:tgl||today(), durasi, kegiatan, status:'Pending', catatan:'Menunggu tinjauan guru'});
         closeModal(); showToast('Jurnal berhasil ditambahkan.'); navigate('jurnal');
@@ -711,6 +704,7 @@ async function savePengumuman() {
     if (!isi) return;
     try {
         await sb.insert('pengumuman',{penulis:currentUser.profil?.nama||currentUser.username, isi, tanggal:today()});
+        invalidate('pengumuman');
         closeModal(); showToast('Pengumuman berhasil dipublikasikan.'); navigate('pengumuman');
     } catch(err) { showToast(err.message,'error'); }
 }
@@ -787,6 +781,7 @@ async function saveAkunBaru() {
             const u=await sb.query('users',{select:'id',eq:{username},single:true});
             await sb.insert('guru',{user_id:u?.id, username, nama, email:email||username+'@smkiptek.sch.id'});
         }
+        invalidate('all_siswa','all_guru');
         closeModal(); showToast('Akun '+nama+' ('+role+') berhasil dibuat.'); navigate('master');
     } catch(err) { showToast(err.message,'error'); }
 }
@@ -852,6 +847,7 @@ async function saveEditSiswa(username) {
             catatan_sekolah: document.getElementById('e-cat-sekolah').value.trim(),
             catatan_industri:document.getElementById('e-cat-industri').value.trim()
         },'username');
+        invalidate('all_siswa','siswa_'+username);
         closeModal(); showToast('Data siswa berhasil diperbarui.'); navigate('master');
     } catch(err) { showToast(err.message,'error'); }
 }
@@ -886,6 +882,8 @@ async function saveKelompok() {
             await sb.insert('kelompok_anggota',{kelompok_id:k.id, siswa_nama:nama, siswa_kelas:siswaData[0]?.kelas||'-', status_absen:'-'});
             await sb.update('siswa',{status_penempatan:'Ditetapkan', pt, alamat_pt:alamat, guru},{nama});
         }
+        invalidate('all_kelompok','kelompok_anggota_all','all_siswa',
+            'kelompok_guru_'+(currentUser.profil?.nama||currentUser.username));
         closeModal(); showToast('Kelompok di '+pt+' berhasil dibuat.'); navigate('plotting');
     } catch(err) { showToast(err.message,'error'); }
 }
