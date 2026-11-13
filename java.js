@@ -299,7 +299,10 @@ async function navigate(target) {
         else if (role==='admin') {
             if (target==='master') {
                 titleEl.innerText="Master Data & Manajemen Akun"; subEl.innerText="Kelola data siswa, guru, dan mitra industri";
-                actionSlot.innerHTML=btnPrimary("openModalTambahAkun()",ICONS.plus+" Tambah Akun");
+                actionSlot.innerHTML=`<div class="flex gap-2">
+                    ${btnPrimary("openModalImportCSV()",'<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Import CSV')}
+                    ${btnPrimary("openModalTambahAkun()",ICONS.plus+" Tambah Akun")}
+                </div>`;
                 const [siswas,gurus] = await Promise.all([
                     sb.query('siswa',{select:'*',order:'nama'}),
                     sb.query('guru', {select:'*',order:'nama'})
@@ -974,6 +977,261 @@ async function prosesUsulan(id, status) {
         showToast('Usulan PT ' + status + '.');
         navigate('usulan_admin');
     } catch(err) { showToast(err.message,'error'); }
+}
+
+// ============================================================
+//  IMPORT CSV MASSAL SISWA
+// ============================================================
+
+// Download template CSV
+function downloadTemplateCSV() {
+    const header = 'NAMA,KELAS,NIS,USERNAME';
+    const contoh = [
+        'Ahmad Fauzi,XI TKJ 1,23101,ahmad01',
+        'Siti Rahma,XI TKJ 1,23102,siti02',
+        'Dimas Anggara,XI TKJ 2,23103,dimas03'
+    ].join('\n');
+    const blob = new Blob([header + '\n' + contoh], {type:'text/csv;charset=utf-8;'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'template_import_siswa.csv';
+    a.click(); URL.revokeObjectURL(url);
+    showToast('Template CSV berhasil diunduh.');
+}
+
+// Buka modal import CSV
+function openModalImportCSV() {
+    openModal(`
+    <div class="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-gray-200 max-h-[90vh] overflow-y-auto space-y-5">
+        <div>
+            <h3 class="font-bold text-lg">Import Siswa dari CSV</h3>
+            <p class="text-xs text-gray-500 mt-1">Upload file CSV berisi data siswa. Password otomatis diisi dari NIS masing-masing siswa.</p>
+        </div>
+
+        <!-- Info format -->
+        <div class="bg-gray-50 rounded-xl p-4 text-xs space-y-1 border border-gray-200">
+            <div class="font-semibold text-gray-600 mb-2">Format kolom CSV yang diperlukan:</div>
+            <div class="grid grid-cols-4 gap-2 text-center">
+                <div class="bg-white border border-gray-200 rounded-lg py-2 font-mono font-bold">NAMA</div>
+                <div class="bg-white border border-gray-200 rounded-lg py-2 font-mono font-bold">KELAS</div>
+                <div class="bg-white border border-gray-200 rounded-lg py-2 font-mono font-bold">NIS</div>
+                <div class="bg-white border border-gray-200 rounded-lg py-2 font-mono font-bold">USERNAME</div>
+            </div>
+            <p class="text-gray-400 mt-2">Password otomatis = NIS siswa. Contoh: NIS 23101 → password: 23101</p>
+        </div>
+
+        <!-- Download template -->
+        <button onclick="downloadTemplateCSV()" class="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-black hover:text-black transition-all flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Download Template CSV
+        </button>
+
+        <!-- Upload area -->
+        <div>
+            <label class="block text-xs uppercase text-gray-500 mb-2">Upload File CSV</label>
+            <div class="relative">
+                <input type="file" id="csv-file" accept=".csv" onchange="previewCSV(this)"
+                    class="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 cursor-pointer hover:border-black transition-all file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-black file:text-white">
+            </div>
+        </div>
+
+        <!-- Preview area -->
+        <div id="csv-preview" class="hidden">
+            <div class="flex justify-between items-center mb-3">
+                <div class="text-sm font-semibold">Preview Data <span id="csv-count" class="text-xs font-normal text-gray-500"></span></div>
+                <div id="csv-warning" class="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg hidden"></div>
+            </div>
+            <div class="border border-gray-200 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+                        <tr class="text-gray-400 uppercase">
+                            <th class="py-2 px-3">Nama</th>
+                            <th class="py-2 px-3">Kelas</th>
+                            <th class="py-2 px-3">NIS</th>
+                            <th class="py-2 px-3">Username</th>
+                            <th class="py-2 px-3">Password</th>
+                            <th class="py-2 px-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="csv-preview-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div id="import-progress-wrap" class="hidden">
+            <div class="flex justify-between text-xs text-gray-500 mb-1">
+                <span>Mengimpor data...</span>
+                <span id="import-progress-text">0%</span>
+            </div>
+            <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                <div id="import-progress-bar" class="bg-[#111111] h-full transition-all duration-300" style="width:0%"></div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+            <button onclick="closeModal()" id="csv-btn-batal" class="px-4 py-2 border border-gray-200 text-sm rounded-xl hover:border-black">Batal</button>
+            <button onclick="jalankanImportCSV()" id="csv-btn-import" class="hidden px-4 py-2 bg-[#111111] text-white text-sm rounded-xl hover:bg-gray-800 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                Import Semua
+            </button>
+        </div>
+    </div>`);
+}
+
+// Variabel global untuk menyimpan data CSV yang sudah di-parse
+let csvDataParsed = [];
+
+// Parse dan preview CSV
+function previewCSV(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+        if (lines.length < 2) {
+            showToast('File CSV kosong atau tidak valid.', 'error');
+            return;
+        }
+
+        // Deteksi header (baris pertama)
+        const header = lines[0].toLowerCase().replace(/\s/g,'');
+        const isValidHeader = header.includes('nama') && header.includes('nis');
+        const dataLines = isValidHeader ? lines.slice(1) : lines;
+
+        csvDataParsed = [];
+        const tbody = document.getElementById('csv-preview-tbody');
+        tbody.innerHTML = '';
+
+        // Ambil username yang sudah ada di database untuk cek duplikat
+        sb.query('users', {select:'username'}).then(existingUsers => {
+            const existingUsernames = new Set(existingUsers.map(u => u.username.toLowerCase()));
+            let dupCount = 0;
+
+            dataLines.forEach((line, i) => {
+                if (!line) return;
+                const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g,''));
+                if (cols.length < 3) return;
+
+                const nama     = cols[0] || '';
+                const kelas    = cols[1] || '';
+                const nis      = cols[2] || '';
+                const username = (cols[3] || nis || 'siswa' + (i+1)).toLowerCase().replace(/\s/g,'');
+                const password = nis || 'pkl2026';
+
+                if (!nama || !nis) return;
+
+                const isDuplikat = existingUsernames.has(username);
+                if (isDuplikat) dupCount++;
+
+                csvDataParsed.push({ nama, kelas, nis, username, password, isDuplikat });
+
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-100 ' + (isDuplikat ? 'bg-yellow-50' : '');
+                tr.innerHTML = `
+                    <td class="py-2 px-3 font-medium">${nama}</td>
+                    <td class="py-2 px-3 text-gray-500">${kelas}</td>
+                    <td class="py-2 px-3">${nis}</td>
+                    <td class="py-2 px-3 font-mono text-xs">${username}</td>
+                    <td class="py-2 px-3 font-mono text-xs text-gray-400">${password}</td>
+                    <td class="py-2 px-3">${isDuplikat
+                        ? '<span class="text-yellow-600 text-xs">⚠ Username ada</span>'
+                        : '<span class="text-green-600 text-xs">✓ Siap import</span>'}</td>`;
+                tbody.appendChild(tr);
+            });
+
+            // Tampilkan preview
+            document.getElementById('csv-preview').classList.remove('hidden');
+            const totalBaru = csvDataParsed.filter(d => !d.isDuplikat).length;
+            document.getElementById('csv-count').innerText =
+                `${csvDataParsed.length} baris ditemukan · ${totalBaru} siap diimpor · ${dupCount} duplikat dilewati`;
+
+            if (dupCount > 0) {
+                const warn = document.getElementById('csv-warning');
+                warn.innerText = `${dupCount} username sudah ada, akan dilewati`;
+                warn.classList.remove('hidden');
+            }
+
+            if (totalBaru > 0) {
+                document.getElementById('csv-btn-import').classList.remove('hidden');
+            }
+        }).catch(err => showToast(err.message, 'error'));
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+// Jalankan import ke Supabase
+async function jalankanImportCSV() {
+    const dataBaru = csvDataParsed.filter(d => !d.isDuplikat);
+    if (!dataBaru.length) { showToast('Tidak ada data baru untuk diimpor.', 'error'); return; }
+
+    // Sembunyikan tombol, tampilkan progress
+    document.getElementById('csv-btn-import').classList.add('hidden');
+    document.getElementById('csv-btn-batal').disabled = true;
+    document.getElementById('import-progress-wrap').classList.remove('hidden');
+
+    const bar  = document.getElementById('import-progress-bar');
+    const text = document.getElementById('import-progress-text');
+
+    let berhasil = 0, gagal = 0;
+
+    for (let i = 0; i < dataBaru.length; i++) {
+        const d = dataBaru[i];
+        try {
+            // 1. Insert ke tabel users
+            await sb.insert('users', {
+                username: d.username,
+                password: d.password,
+                role:     'siswa',
+                nama:     d.nama,
+                email:    d.username + '@smkiptek.sch.id'
+            });
+
+            // 2. Insert ke tabel siswa
+            const userRes = await sb.query('users', {select:'id', eq:{username: d.username}});
+            const userId  = userRes[0]?.id;
+
+            const siswaRes = await sb.insert('siswa', {
+                user_id:           userId,
+                username:          d.username,
+                nama:              d.nama,
+                kelas:             d.kelas,
+                nis:               d.nis,
+                status_penempatan: 'Belum Ditetapkan',
+                pt:                '-',
+                alamat_pt:         '-',
+                pic_pt:            '-',
+                guru:              '-',
+                pembimbing_industri: '-'
+            });
+
+            // 3. Insert record nilai kosong
+            await sb.insert('nilai', {
+                siswa_id: siswaRes?.id,
+                username: d.username
+            });
+
+            berhasil++;
+        } catch(err) {
+            gagal++;
+            console.warn('Gagal import:', d.nama, err.message);
+        }
+
+        // Update progress bar
+        const pct = Math.round(((i + 1) / dataBaru.length) * 100);
+        bar.style.width  = pct + '%';
+        text.innerText   = pct + '%';
+    }
+
+    // Selesai
+    setTimeout(() => {
+        closeModal();
+        showToast(`Import selesai: ${berhasil} berhasil${gagal > 0 ? `, ${gagal} gagal` : ''}.`);
+        navigate('master');
+    }, 500);
 }
 
 function filterSiswa(q) {
