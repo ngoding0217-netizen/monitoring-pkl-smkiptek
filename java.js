@@ -193,6 +193,7 @@ const ICONS = {
     master:     `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l9 4.5V12c0 5.25-3.75 9-9 10.5C6.75 21 3 17.25 3 12V6.5L12 2z"/></svg>`,
     plotting:   `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><path d="M7 10v4h4"/></svg>`,
     dokumen:    `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+    usulan_admin: `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>`,
     plus:       `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>`,
     spinner:    `<svg class="w-5 h-5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>`
 };
@@ -207,9 +208,9 @@ function navBtn(target, label, active) {
 function renderSidebar(role) {
     const menu = document.getElementById('sidebar-menu');
     let html = '';
-    if (role==='siswa')  html = navBtn('status','Status PKL Saya','')+navBtn('absen','Absensi Harian','')+navBtn('jurnal','Jurnal Kegiatan','')+navBtn('nilai','Nilai Akhir','');
+    if (role==='siswa')  html = navBtn('status','Status PKL Saya','')+navBtn('absen','Absensi Harian','')+navBtn('jurnal','Jurnal Kegiatan','')+navBtn('nilai','Nilai Akhir','')+navBtn('pengumuman','Papan Pengumuman','');
     if (role==='guru')   html = navBtn('kelompok','Kelompok Siswa','')+navBtn('validasi','Validasi Jurnal','')+navBtn('pengumuman','Papan Pengumuman','')+navBtn('usulan','Usulan Tempat PT','');
-    if (role==='admin')  html = navBtn('master','Master Data & Akun','')+navBtn('plotting','Manajemen Kelompok','')+navBtn('dokumen','Cetak Berkas / PDF','');
+    if (role==='admin')  html = navBtn('master','Master Data & Akun','')+navBtn('plotting','Manajemen Kelompok','')+navBtn('usulan_admin','Kelola Usulan PT','')+navBtn('dokumen','Cetak Berkas / PDF','');
     menu.innerHTML = html;
 }
 
@@ -255,6 +256,11 @@ async function navigate(target) {
                 titleEl.innerText="Hasil Penilaian PKL"; subEl.innerText="Rekapitulasi nilai akhir dari pembimbing";
                 const data = await sb.query('nilai',{select:'*',eq:{username:u}});
                 renderNilai(content, data[0]||null);
+            }
+            else if (target==='pengumuman') {
+                titleEl.innerText="Papan Pengumuman"; subEl.innerText="Informasi dan instruksi dari guru pembimbing";
+                const data = await sb.query('pengumuman',{select:'*',order:'created_at.desc'});
+                renderPengumumanSiswa(content, data);
             }
         }
         // ── GURU ─────────────────────────────────────────────
@@ -313,6 +319,11 @@ async function navigate(target) {
             else if (target==='dokumen') {
                 titleEl.innerText="Pusat Cetak Berkas & Legalitas"; subEl.innerText="Cetak surat pengantar dan sertifikat";
                 renderDokumen(content);
+            }
+            else if (target==='usulan_admin') {
+                titleEl.innerText="Kelola Usulan Tempat PT"; subEl.innerText="Tinjau dan proses usulan mitra industri dari guru";
+                const data = await sb.query('usulan_pt',{select:'*',order:'created_at.desc'});
+                renderUsulanAdmin(content, data);
             }
         }
     } catch(err) { content.innerHTML=errHTML(err.message); }
@@ -539,6 +550,57 @@ function renderPlotting(el, data) {
                 ${ICONS.dokumen} Cetak Surat
             </button>
         </div>`).join('')}</div>`;
+}
+
+// ── RENDER KHUSUS SISWA: Pengumuman (read-only) ──────────────
+function renderPengumumanSiswa(el, data) {
+    if (!data.length) { el.innerHTML=emptyHTML('Belum ada pengumuman dari guru pembimbing.'); return; }
+    el.innerHTML=`<div class="space-y-4">${data.map(p=>`
+        <div class="p-5 bg-white/80 backdrop-blur-xl border border-gray-200/80 rounded-2xl shadow-sm">
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 bg-[#111111] rounded-full flex items-center justify-center text-white">${ICONS.pengumuman}</div>
+                    <span class="text-sm font-semibold">${p.penulis}</span>
+                </div>
+                <span class="text-xs text-gray-400">${p.tanggal}</span>
+            </div>
+            <p class="text-sm text-gray-700 leading-relaxed">${p.isi}</p>
+        </div>`).join('')}</div>`;
+}
+
+// ── RENDER ADMIN: Kelola Usulan PT ───────────────────────────
+function renderUsulanAdmin(el, data) {
+    if (!data.length) { el.innerHTML=emptyHTML('Belum ada usulan PT dari guru.'); return; }
+    const rows = data.map(u=>`
+        <tr class="border-b border-gray-100 hover:bg-gray-50/50 text-sm">
+            <td class="py-3 px-4 font-medium">${u.nama_pt}</td>
+            <td class="py-3 px-4 text-gray-600">${u.guru}</td>
+            <td class="py-3 px-4 text-gray-500">${u.alamat}</td>
+            <td class="py-3 px-4">${u.bidang}</td>
+            <td class="py-3 px-4">${u.tanggal}</td>
+            <td class="py-3 px-4">${badge(u.status, u.status==='Diterima'?'green':u.status==='Ditolak'?'red':'yellow')}</td>
+            <td class="py-3 px-4 whitespace-nowrap">
+                ${u.status==='Menunggu'?`
+                <div class="flex gap-2">
+                    <button onclick="prosesUsulan('${u.id}','Diterima')" class="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700">Terima</button>
+                    <button onclick="prosesUsulan('${u.id}','Ditolak')" class="px-3 py-1.5 border border-red-300 text-red-600 text-xs rounded-lg hover:bg-red-50">Tolak</button>
+                </div>`:'<span class="text-xs text-gray-400">Sudah diproses</span>'}
+            </td>
+        </tr>`).join('');
+    el.innerHTML=`<div class="bg-white/80 backdrop-blur-xl border border-gray-200/80 rounded-2xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto"><table class="w-full text-left">
+            <thead class="bg-gray-50/80 border-b border-gray-200"><tr class="text-xs uppercase text-gray-400">
+                <th class="py-3 px-4 font-semibold">Nama PT</th>
+                <th class="py-3 px-4 font-semibold">Diajukan Guru</th>
+                <th class="py-3 px-4 font-semibold">Alamat</th>
+                <th class="py-3 px-4 font-semibold">Bidang</th>
+                <th class="py-3 px-4 font-semibold">Tanggal</th>
+                <th class="py-3 px-4 font-semibold">Status</th>
+                <th class="py-3 px-4 font-semibold">Aksi</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table></div>
+    </div>`;
 }
 
 function renderDokumen(el) {
@@ -830,18 +892,38 @@ async function bukaDetailKelompok(id) {
         const anggota = await sb.query('kelompok_anggota',{select:'*',eq:{kelompok_id:id}});
         const kelData = await sb.query('kelompok',{select:'*',eq:{id}});
         const k = kelData[0]||{};
-        const rows = anggota.map(a=>`
+
+        // Ambil absensi hari ini untuk setiap anggota kelompok
+        const absensiHariIni = await sb.query('absensi',{select:'username,status',eq:{tanggal:today()}});
+        const absenMap = {};
+        absensiHariIni.forEach(a => { absenMap[a.username] = a.status; });
+
+        // Ambil username siswa berdasarkan nama
+        const namaList = anggota.map(a=>a.siswa_nama);
+        const siswaProfiles = namaList.length ? await sb.query('siswa',{select:'nama,username',order:'nama'}) : [];
+        const namaToUsername = {};
+        siswaProfiles.forEach(s => { namaToUsername[s.nama] = s.username; });
+
+        const rows = anggota.map(a=>{
+            const username = namaToUsername[a.siswa_nama] || '';
+            const statusAbsen = absenMap[username] || '-';
+            const absenColor = statusAbsen==='Hadir'?'green':statusAbsen==='Sakit'?'red':statusAbsen==='Izin'?'yellow':'gray';
+            return `
             <div class="p-3.5 border border-gray-100 rounded-xl flex justify-between items-center text-sm hover:bg-gray-50">
                 <div><div class="font-medium">${a.siswa_nama}</div><div class="text-xs text-gray-400">${a.siswa_kelas||'-'}</div></div>
                 <div class="flex items-center gap-2">
-                    ${badge('Absen: '+a.status_absen, a.status_absen==='Hadir'?'green':a.status_absen==='Sakit'?'red':'gray')}
+                    ${badge('Absen: '+statusAbsen, absenColor)}
                     <button onclick="openInputNilaiModal('${a.siswa_nama}')" class="px-3 py-1.5 bg-[#111111] text-white text-xs rounded-lg hover:bg-gray-800">Input Nilai</button>
                 </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
         openModal(`<div class="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto">
             <div class="flex justify-between items-center pb-4 mb-4 border-b border-gray-100">
                 <div><h3 class="font-bold text-lg">${k.pt}</h3><p class="text-xs text-gray-400 mt-0.5">Guru: ${k.guru} · Ketua: ${k.ketua}</p></div>
-                <button onclick="closeModal()" class="text-xs uppercase px-3 py-1.5 border border-gray-200 rounded-xl hover:border-black">Tutup</button>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-400">Absensi: ${today()}</span>
+                    <button onclick="closeModal()" class="text-xs uppercase px-3 py-1.5 border border-gray-200 rounded-xl hover:border-black">Tutup</button>
+                </div>
             </div>
             <div class="space-y-2">${rows||'<p class="text-center text-sm text-gray-400 py-4">Belum ada anggota.</p>'}</div>
         </div>`);
@@ -882,6 +964,15 @@ async function saveInputNilai(username) {
             catatan_industri:document.getElementById('in-cat-industri').value.trim()
         },'username');
         closeModal(); showToast('Nilai berhasil disimpan.');
+    } catch(err) { showToast(err.message,'error'); }
+}
+
+// Proses usulan PT dari guru (admin)
+async function prosesUsulan(id, status) {
+    try {
+        await sb.update('usulan_pt', {status}, {id});
+        showToast('Usulan PT ' + status + '.');
+        navigate('usulan_admin');
     } catch(err) { showToast(err.message,'error'); }
 }
 
