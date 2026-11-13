@@ -1,0 +1,6 @@
+# Jangan push kredensial ke GitHub
+.env.local
+.env
+
+# Node modules
+node_modules/

@@ -1,0 +1,8 @@
+{
+  "name": "monitoring-pkl-smkiptek",
+  "version": "1.0.0",
+  "description": "Sistem Monitoring PKL SMK IPTEK Tangsel",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}
